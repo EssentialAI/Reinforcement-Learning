@@ -6,20 +6,33 @@ Created on Wed Apr 20 14:55:03 2022
 """
 import numpy as np
 import pandas as pd
-import cufflinks as cf
-import plotly.offline
+import matplotlib.pyplot as plt
 
 class BernoulliBandit(object):
     def __init__(self, p):
         self.p = p
     
-    def display_ad(self):
+    def get_reward(self):
         reward = np.random.binomial(n=1, p=self.p)
         return reward
+
+class GaussianBandit(object):
+    def __init__(self, mean, stdev):
+        self.mean = mean
+        self.stdev = stdev
+    
+    def get_reward(self):
+        reward = np.random.normal(self.mean, self.stdev)
+        return np.round(reward, 1)
     
 class Game(object):
-    def __init__(self, bandits, n_train=1000, n_test = 90000):
-        self.bandits = [BernoulliBandit(bandit) for bandit in bandits]
+    def __init__(self, bandits, n_train=10000, n_test = 90000, band_type = 'gaussian'):
+        
+        if band_type=='gaussian':
+            self.bandits = [GaussianBandit(bandit[0], bandit[1]) for bandit in bandits]
+        else:
+            self.bandits = [BernoulliBandit(bandit) for bandit in bandits]
+            
         self.n_ads = len(bandits)
         self.total_reward=0
         self.N = np.zeros(self.n_ads)
@@ -31,7 +44,7 @@ class Game(object):
     def train(self):
         for i in range(self.n_train):
             ad_chosen = np.random.randint(self.n_ads)
-            R = self.bandits[ad_chosen].display_ad()  # Observe reward
+            R = self.bandits[ad_chosen].get_reward()  # Observe reward
             self.N[ad_chosen] += 1
             self.Q[ad_chosen] += (1 / self.N[ad_chosen]) * (R - self.Q[ad_chosen])
             self.total_reward += R
@@ -41,12 +54,12 @@ class Game(object):
         best_ad_index = np.argmax(self.Q)
         print(self.Q)
         
-        print("After training the best performing ad is {}".format(best_ad_index))
+        print("After training the best performing ad is {}".format(best_ad_index+1))
         return best_ad_index
     
     def test(self, best_ad_index):
         for i in range(self.n_test):
-            R = self.bandits[best_ad_index].display_ad()
+            R = self.bandits[best_ad_index].get_reward()
             self.total_reward += R
             avg_reward_so_far = self.total_reward / (self.n_train + i + 1)
             self.avg_rewards.append(avg_reward_so_far)
@@ -55,17 +68,20 @@ class Game(object):
         return df
     
     def plot(self, df):
-        cf.go_offline()
-        cf.set_config_file(world_readable=True, theme="white")
-
-        df['A/B/n'].iplot(title="A/B/n Test Avg. Reward: {}".format(sum(self.avg_rewards)/(self.n_train+self.n_test)),
-        xTitle='Impressions',
-        yTitle='Avg. Reward')
+        df['A/B/n'].plot()
+        average_reward=np.round(sum(self.avg_rewards)/(self.n_train+self.n_test), 3)
+        plt.title("Average reward is {}".format(average_reward))
+        plt.xlabel("Number of Impressions")
+        plt.ylabel("Reward")
 
 if __name__ =="__main__":
     
+    # Gaussian Bandits
+    # ads = [(3,2), (0,1), (-1,6), (1,4)]
+    
+    # Bernoulli Bandits
     ads = [0.004, 0.016, 0.2, 0.028, 0.031]
-    ads_initialized = Game(ads)
+    ads_initialized = Game(ads, band_type="gaussian1")
     best_ad=ads_initialized.train()
     df = ads_initialized.test(best_ad)
     ads_initialized.plot(df)
